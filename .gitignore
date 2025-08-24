@@ -1,2 +1,13 @@
-#virtual environment
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+venv/
+.env
+
+# Django
+*.sqlite3
+
+# Misc
 myenv
