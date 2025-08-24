@@ -41,3 +41,27 @@ curl -X POST http://localhost:8000/api/auth/logout/ \
   -H 'Content-Type: application/json' \
   -d '{"refresh":"<refresh>"}'
 ```
+
+## Ads API Example
+
+```bash
+curl -X POST http://localhost:8000/api/ads/ \
+  -H "Authorization: Bearer <JWT>" \
+  -F "title=Spacious 2-Bedroom Apartment" \
+  -F "description=..." \
+  -F "monthly_rent=4500000" \
+  -F "property_type=APARTMENT" \
+  -F "bedrooms=2" -F "bathrooms=1" -F "area_m2=65" \
+  -F "address=Yakkasaroy, Tashkent" \
+  -F "latitude=41.3111" -F "longitude=69.2797" \
+  -F "amenities=1" -F "amenities=3" \
+  -F "contact_name=Ali" \
+  -F "contact_phone=+998901234567" \
+  -F "images=@/path/img1.jpg" -F "images=@/path/img2.jpg"
+```
+
+### Integration notes
+
+The HTML form should submit fields matching the API names. Use `multipart/form-data` with
+`images[]` for files. Prices are integer UZS values. Successful creation returns the
+newly created ad with status `PENDING` until moderated.

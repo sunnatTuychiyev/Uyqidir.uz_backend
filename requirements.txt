@@ -6,3 +6,5 @@ django-phonenumber-field==8.1.0
 django-cors-headers==4.7.0
 python-dotenv==1.1.1
 dj-database-url==3.0.1
+django-filter==24.2
+Pillow==10.3.0

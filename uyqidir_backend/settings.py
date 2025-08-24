@@ -31,7 +31,9 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "corsheaders",
     "phonenumber_field",
+    "django_filters",
     "accounts.apps.AccountsConfig",
+    "ads.apps.AdsConfig",
 ]
 
 # Middleware
@@ -99,6 +101,15 @@ REST_FRAMEWORK = {
     ),
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": (
+        "ads.throttles.AdPostRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {"ad_post": "10/day"},
 }
 
 # Simple JWT
@@ -122,3 +133,11 @@ cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
 CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_origins.split(",") if o.strip()]
 csrf_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins.split(",") if o.strip()]
+
+# Media files
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Optional S3 storage configuration
+if os.getenv("USE_S3") == "True":
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
