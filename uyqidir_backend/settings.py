@@ -31,7 +31,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "corsheaders",
     "phonenumber_field",
-    "accounts",
+    "accounts.apps.AccountsConfig",
 ]
 
 # Middleware
