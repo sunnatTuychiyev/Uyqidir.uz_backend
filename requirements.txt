@@ -1,0 +1,8 @@
+Django>=5.0,<6.0
+djangorestframework
+djangorestframework-simplejwt[crypto]
+drf-spectacular
+django-phonenumber-field[phonenumberslite]
+django-cors-headers
+python-dotenv
+dj-database-url
