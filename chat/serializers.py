@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from ads.models import Ad
@@ -30,6 +31,7 @@ class ChatThreadSerializer(serializers.ModelSerializer):
         model = ChatThread
         fields = ["id", "ad", "participants", "created_at", "last_message"]
 
+    @extend_schema_field(ChatMessageSerializer)
     def get_last_message(self, obj: ChatThread):
         msg = obj.messages.order_by("-created_at").first()
         return ChatMessageSerializer(msg).data if msg else None

@@ -5,7 +5,8 @@ from decimal import Decimal
 from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiExample, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -100,6 +101,13 @@ class AdViewSet(viewsets.ModelViewSet):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "image_id", OpenApiTypes.INT, OpenApiParameter.PATH
+            )
+        ]
+    )
     @action(detail=True, methods=["delete"], url_path="images/(?P<image_id>[^/.]+)")
     def delete_image(self, request, pk=None, image_id=None):
         ad = self.get_object()
@@ -208,6 +216,8 @@ class MyAdViewSet(
     ordering = ["-created_at"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
+            return Ad.objects.none()
         return Ad.objects.filter(owner=self.request.user).select_related("owner").prefetch_related(
             "amenities", "images"
         )
