@@ -177,3 +177,23 @@ class AdTests(APITestCase):
         resp = self.client.post(self.list_url, data, format="multipart")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("latitude", resp.data)
+
+    def test_stats_endpoint(self):
+        self.create_ad(title="Available")
+        available_ad = Ad.objects.latest("id")
+        available_ad.status = AdStatus.APPROVED
+        available_ad.save()
+
+        self.create_ad(title="Pending")
+
+        self.create_ad(title="Rented")
+        rented_ad = Ad.objects.latest("id")
+        rented_ad.status = AdStatus.ARCHIVED
+        rented_ad.save()
+
+        resp = self.client.get(reverse("ad-stats"))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["available"], 1)
+        self.assertEqual(resp.data["pending"], 1)
+        self.assertEqual(resp.data["rented"], 1)
+        self.assertEqual(resp.data["total"], 3)
