@@ -46,6 +46,8 @@ class AdTests(APITestCase):
             "bathrooms": 1,
             "area_m2": 50,
             "address": "Main street",
+            "latitude": 41.0,
+            "longitude": 69.0,
             "amenities": [self.amenity.id],
             "images": [generate_image()],
         }
@@ -130,6 +132,8 @@ class AdTests(APITestCase):
                 "bathrooms": 1,
                 "area_m2": 50,
                 "address": "Main",
+                "latitude": 41.0,
+                "longitude": 69.0,
                 "images": [generate_image()],
             }
             resp = self.client.post(self.list_url, data, format="multipart")
@@ -156,3 +160,20 @@ class AdTests(APITestCase):
         self.authenticate(self.user)
         resp2 = self.client.delete(reverse("ad-detail", args=[ad_id]))
         self.assertEqual(resp2.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_location_required(self):
+        self.authenticate(self.user)
+        data = {
+            "title": "No location",
+            "description": "Desc",
+            "monthly_rent": 1000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 50,
+            "address": "Main",
+            "images": [generate_image()],
+        }
+        resp = self.client.post(self.list_url, data, format="multipart")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("latitude", resp.data)

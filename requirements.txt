@@ -8,3 +8,4 @@ python-dotenv==1.1.1
 dj-database-url==3.0.1
 django-filter==24.2
 Pillow==11.3.0
+phonenumbers==8.13.40

@@ -72,12 +72,12 @@ Submit the form as `multipart/form-data` using the following field names:
 * `bathrooms`
 * `area_m2`
 * `address`
-* `latitude`
-* `longitude`
+* `latitude` (required)
+* `longitude` (required)
 * `amenities` (repeatable)
 * `contact_name`
 * `contact_phone`
 * `images` (repeatable)
 
 Prices are integer UZS values. Successful creation returns the new ad with status
-`PENDING` until moderated.
+`PENDING` until moderated. Latitude and longitude must be included.
