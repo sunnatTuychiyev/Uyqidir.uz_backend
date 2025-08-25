@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, extend_schema
@@ -130,6 +130,31 @@ class AdViewSet(viewsets.ModelViewSet):
         ad.save(update_fields=["status", "moderation_note", "updated_at"])
         return Response(AdDetailSerializer(ad, context={"request": request}).data)
 
+    @action(detail=False, methods=["get"], url_path="stats")
+    def stats(self, request):
+        qs = Ad.objects.filter(is_active=True)
+        counts = (
+            qs.values("status")
+            .filter(
+                status__in=[
+                    AdStatus.APPROVED,
+                    AdStatus.PENDING,
+                    AdStatus.ARCHIVED,
+                ]
+            )
+            .annotate(total=Count("id"))
+        )
+        data = {"available": 0, "pending": 0, "rented": 0}
+        for item in counts:
+            if item["status"] == AdStatus.APPROVED:
+                data["available"] = item["total"]
+            elif item["status"] == AdStatus.PENDING:
+                data["pending"] = item["total"]
+            elif item["status"] == AdStatus.ARCHIVED:
+                data["rented"] = item["total"]
+        data["total"] = sum(data.values())
+        return Response(data)
+
     @action(detail=False, methods=["get"], url_path="nearby")
     def nearby(self, request):
         try:
@@ -147,6 +172,21 @@ class AdViewSet(viewsets.ModelViewSet):
         serializer = AdDetailSerializer(page or qs, many=True, context={"request": request})
         if page is not None:
             return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="similar")
+    def similar(self, request, pk=None):
+        ad = self.get_object()
+        qs = (
+            Ad.objects.filter(
+                property_type=ad.property_type,
+                status=AdStatus.APPROVED,
+                is_active=True,
+            )
+            .exclude(id=ad.id)
+            .order_by("-created_at")[:3]
+        )
+        serializer = AdDetailSerializer(qs, many=True, context={"request": request})
         return Response(serializer.data)
 
 

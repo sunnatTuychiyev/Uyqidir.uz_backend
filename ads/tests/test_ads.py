@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -21,6 +22,7 @@ def generate_image(name: str = "test.gif") -> SimpleUploadedFile:
 
 class AdTests(APITestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.user = User.objects.create_user(
             email="user@example.com", full_name="User", password="StrongPass123"
         )
@@ -177,3 +179,63 @@ class AdTests(APITestCase):
         resp = self.client.post(self.list_url, data, format="multipart")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("latitude", resp.data)
+
+    def test_stats_endpoint(self):
+        self.create_ad(title="Available")
+        available_ad = Ad.objects.latest("id")
+        available_ad.status = AdStatus.APPROVED
+        available_ad.save()
+
+        self.create_ad(title="Pending")
+
+        self.create_ad(title="Rented")
+        rented_ad = Ad.objects.latest("id")
+        rented_ad.status = AdStatus.ARCHIVED
+        rented_ad.save()
+
+        resp = self.client.get(reverse("ad-stats"))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["available"], 1)
+        self.assertEqual(resp.data["pending"], 1)
+        self.assertEqual(resp.data["rented"], 1)
+        self.assertEqual(resp.data["total"], 3)
+
+    def test_owner_info_and_similar_endpoint(self):
+        # Main ad
+        resp = self.create_ad(title="Main")
+        main_id = resp.data["id"]
+        main_ad = Ad.objects.get(id=main_id)
+        main_ad.status = AdStatus.APPROVED
+        main_ad.save()
+
+        # Additional ads
+        similar_ids = []
+        for title, ptype in [
+            ("Sim1", "HOUSE"),
+            ("Sim2", "HOUSE"),
+            ("Sim3", "HOUSE"),
+        ]:
+            r = self.create_ad(title=title, property_type=ptype)
+            ad = Ad.objects.get(id=r.data["id"])
+            ad.status = AdStatus.APPROVED
+            ad.save()
+            similar_ids.append(ad.id)
+
+        other_resp = self.create_ad(title="Other", property_type="APARTMENT")
+        other_ad = Ad.objects.get(id=other_resp.data["id"])
+        other_ad.status = AdStatus.APPROVED
+        other_ad.save()
+
+        # Similar endpoint
+        resp_sim = self.client.get(reverse("ad-similar", args=[main_id]))
+        self.assertEqual(resp_sim.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp_sim.data), 3)
+        returned_ids = {item["id"] for item in resp_sim.data}
+        self.assertTrue(set(similar_ids).issubset(returned_ids))
+        self.assertNotIn(other_ad.id, returned_ids)
+
+        # Owner info on detail
+        resp_detail = self.client.get(reverse("ad-detail", args=[main_id]))
+        self.assertEqual(resp_detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_detail.data["owner"]["full_name"], "User")
+        self.assertEqual(resp_detail.data["owner"]["active_ads"], 5)
