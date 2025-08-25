@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -10,6 +11,7 @@ User = get_user_model()
 
 class AuthTests(APITestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.register_url = reverse("register")
         self.login_url = reverse("login")
         self.me_url = reverse("me")

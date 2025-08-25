@@ -113,7 +113,9 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         if not validated_data.get("contact_name"):
             validated_data["contact_name"] = getattr(user, "full_name", "")
         if not validated_data.get("contact_phone"):
-            validated_data["contact_phone"] = getattr(user, "phone_number", "")
+            phone = getattr(user, "phone_number", "")
+            # Ensure a blank string is stored instead of None to satisfy NOT NULL
+            validated_data["contact_phone"] = phone or ""
 
         ad = Ad.objects.create(owner=user, status=AdStatus.PENDING, **validated_data)
         if amenities:

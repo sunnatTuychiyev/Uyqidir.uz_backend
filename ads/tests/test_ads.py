@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -21,6 +22,7 @@ def generate_image(name: str = "test.gif") -> SimpleUploadedFile:
 
 class AdTests(APITestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.user = User.objects.create_user(
             email="user@example.com", full_name="User", password="StrongPass123"
         )
