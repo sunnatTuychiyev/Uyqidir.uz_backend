@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -57,6 +58,35 @@ class AdViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             return [AdPostRateThrottle()]
         return []
+
+    @extend_schema(
+        request=AdCreateUpdateSerializer,
+        responses=AdDetailSerializer,
+        examples=[
+            OpenApiExample(
+                "Ad creation",
+                media_type="multipart/form-data",
+                value={
+                    "title": "Spacious 2-Bedroom Apartment",
+                    "description": "...",
+                    "monthly_rent": 4500000,
+                    "property_type": "APARTMENT",
+                    "bedrooms": 2,
+                    "bathrooms": 1,
+                    "area_m2": "65.00",
+                    "address": "Yakkasaroy, Tashkent",
+                    "latitude": "41.3111",
+                    "longitude": "69.2797",
+                    "amenities": [1, 3],
+                    "contact_name": "Ali",
+                    "contact_phone": "+998901234567",
+                    "images": ["(binary)", "(binary)"],
+                },
+            )
+        ],
+    )
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
 
     def perform_destroy(self, instance: Ad) -> None:
         instance.is_active = False

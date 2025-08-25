@@ -22,3 +22,9 @@ class AdAdmin(admin.ModelAdmin):
 class AmenityAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
     search_fields = ("name",)
+
+
+@admin.register(AdImage)
+class AdImageAdmin(admin.ModelAdmin):
+    list_display = ("ad", "order", "created_at")
+    search_fields = ("ad__title",)

@@ -147,3 +147,12 @@ class AdTests(APITestCase):
         resp2 = self.client.get(self.list_url)
         ids = [item["id"] for item in resp2.data.get("results", [])]
         self.assertNotIn(ad_id, ids)
+
+    def test_owner_cannot_delete_approved(self):
+        resp = self.create_ad(title="House 5")
+        ad_id = resp.data["id"]
+        self.authenticate(self.admin)
+        self.client.post(reverse("ad-approve", args=[ad_id]), {})
+        self.authenticate(self.user)
+        resp2 = self.client.delete(reverse("ad-detail", args=[ad_id]))
+        self.assertEqual(resp2.status_code, status.HTTP_403_FORBIDDEN)

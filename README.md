@@ -62,6 +62,22 @@ curl -X POST http://localhost:8000/api/ads/ \
 
 ### Integration notes
 
-The HTML form should submit fields matching the API names. Use `multipart/form-data` with
-`images[]` for files. Prices are integer UZS values. Successful creation returns the
-newly created ad with status `PENDING` until moderated.
+Submit the form as `multipart/form-data` using the following field names:
+
+* `title`
+* `description`
+* `monthly_rent`
+* `property_type`
+* `bedrooms`
+* `bathrooms`
+* `area_m2`
+* `address`
+* `latitude`
+* `longitude`
+* `amenities` (repeatable)
+* `contact_name`
+* `contact_phone`
+* `images` (repeatable)
+
+Prices are integer UZS values. Successful creation returns the new ad with status
+`PENDING` until moderated.
