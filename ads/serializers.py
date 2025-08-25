@@ -54,6 +54,7 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ad
         fields = [
+            "id",
             "title",
             "description",
             "monthly_rent",
@@ -69,6 +70,7 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
             "contact_phone",
             "images",
         ]
+        read_only_fields = ["id"]
 
     def validate_monthly_rent(self, value: int) -> int:
         if not 1 <= value <= 1_000_000_000:
