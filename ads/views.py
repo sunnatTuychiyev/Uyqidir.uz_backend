@@ -174,6 +174,21 @@ class AdViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
 
+    @action(detail=True, methods=["get"], url_path="similar")
+    def similar(self, request, pk=None):
+        ad = self.get_object()
+        qs = (
+            Ad.objects.filter(
+                property_type=ad.property_type,
+                status=AdStatus.APPROVED,
+                is_active=True,
+            )
+            .exclude(id=ad.id)
+            .order_by("-created_at")[:3]
+        )
+        serializer = AdDetailSerializer(qs, many=True, context={"request": request})
+        return Response(serializer.data)
+
 
 class MyAdViewSet(
     mixins.ListModelMixin,

@@ -182,4 +182,13 @@ class AdDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_owner(self, obj: Ad) -> dict[str, Any]:
-        return {"id": str(obj.owner_id), "username": getattr(obj.owner, "email", "")}
+        owner = obj.owner
+        active_ads = owner.ads.filter(
+            status=AdStatus.APPROVED, is_active=True
+        ).count()
+        return {
+            "id": str(owner.pk),
+            "username": getattr(owner, "email", ""),
+            "full_name": getattr(owner, "full_name", ""),
+            "active_ads": active_ads,
+        }

@@ -197,3 +197,43 @@ class AdTests(APITestCase):
         self.assertEqual(resp.data["pending"], 1)
         self.assertEqual(resp.data["rented"], 1)
         self.assertEqual(resp.data["total"], 3)
+
+    def test_owner_info_and_similar_endpoint(self):
+        # Main ad
+        resp = self.create_ad(title="Main")
+        main_id = resp.data["id"]
+        main_ad = Ad.objects.get(id=main_id)
+        main_ad.status = AdStatus.APPROVED
+        main_ad.save()
+
+        # Additional ads
+        similar_ids = []
+        for title, ptype in [
+            ("Sim1", "HOUSE"),
+            ("Sim2", "HOUSE"),
+            ("Sim3", "HOUSE"),
+        ]:
+            r = self.create_ad(title=title, property_type=ptype)
+            ad = Ad.objects.get(id=r.data["id"])
+            ad.status = AdStatus.APPROVED
+            ad.save()
+            similar_ids.append(ad.id)
+
+        other_resp = self.create_ad(title="Other", property_type="APARTMENT")
+        other_ad = Ad.objects.get(id=other_resp.data["id"])
+        other_ad.status = AdStatus.APPROVED
+        other_ad.save()
+
+        # Similar endpoint
+        resp_sim = self.client.get(reverse("ad-similar", args=[main_id]))
+        self.assertEqual(resp_sim.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp_sim.data), 3)
+        returned_ids = {item["id"] for item in resp_sim.data}
+        self.assertTrue(set(similar_ids).issubset(returned_ids))
+        self.assertNotIn(other_ad.id, returned_ids)
+
+        # Owner info on detail
+        resp_detail = self.client.get(reverse("ad-detail", args=[main_id]))
+        self.assertEqual(resp_detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_detail.data["owner"]["full_name"], "User")
+        self.assertEqual(resp_detail.data["owner"]["active_ads"], 5)
