@@ -3,10 +3,9 @@ from __future__ import annotations
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 
 from .serializers import (
     LoginSerializer,
@@ -48,14 +47,19 @@ class MeView(generics.RetrieveAPIView):
         return self.request.user
 
 
-@extend_schema(tags=["Auth"])
-class LogoutView(APIView):
+@extend_schema(
+    tags=["Auth"],
+    request=LogoutSerializer,
+    responses={205: OpenApiResponse(description="Logged out")},
+)
+class LogoutView(generics.GenericAPIView):
     """Blacklist refresh token on logout."""
 
+    serializer_class = LogoutSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):  # type: ignore[override]
-        serializer = LogoutSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         token = RefreshToken(serializer.validated_data["refresh"])
         token.blacklist()

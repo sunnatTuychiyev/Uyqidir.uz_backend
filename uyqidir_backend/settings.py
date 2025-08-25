@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "django_filters",
     "accounts.apps.AccountsConfig",
     "ads.apps.AdsConfig",
+    "chat.apps.ChatConfig",
 ]
 
 # Middleware
