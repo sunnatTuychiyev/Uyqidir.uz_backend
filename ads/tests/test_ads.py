@@ -66,6 +66,14 @@ class AdTests(APITestCase):
         self.assertEqual(ad.status, AdStatus.PENDING)
         self.assertTrue(ad.slug)
 
+    def test_list_shows_own_pending_ads(self):
+        resp = self.create_ad(title="Mine")
+        ad_id = resp.data["id"]
+        list_resp = self.client.get(self.list_url)
+        self.assertEqual(list_resp.status_code, status.HTTP_200_OK)
+        ids = [item["id"] for item in list_resp.data.get("results", [])]
+        self.assertIn(ad_id, ids)
+
     def test_create_ad_with_base64_images(self):
         image_data = base64.b64encode(MIN_GIF).decode()
         payload = {

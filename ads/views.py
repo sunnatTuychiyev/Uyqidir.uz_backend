@@ -39,7 +39,12 @@ class AdViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Ad.objects.select_related("owner").prefetch_related("amenities", "images")
         if self.action == "list":
-            return qs.filter(status=AdStatus.APPROVED, is_active=True)
+            qs = qs.filter(is_active=True)
+            if self.request.user.is_staff:
+                return qs
+            if self.request.user.is_authenticated:
+                return qs.filter(Q(status=AdStatus.APPROVED) | Q(owner=self.request.user))
+            return qs.filter(status=AdStatus.APPROVED)
         if self.action == "retrieve":
             if self.request.user.is_authenticated:
                 if self.request.user.is_staff:
