@@ -325,6 +325,20 @@ class AdTests(APITestCase):
         detail_resp = self.client.get(reverse("ad-detail", args=[ad_id]))
         self.assertEqual(detail_resp.status_code, status.HTTP_200_OK)
 
+    def test_locations_endpoint_returns_map_data(self):
+        resp = self.create_ad(title="MapHouse", monthly_rent=1500, latitude=41.5, longitude=69.6)
+        ad_id = resp.data["id"]
+        self.client.force_authenticate(user=None)
+        resp_loc = self.client.get(reverse("ad-locations"))
+        self.assertEqual(resp_loc.status_code, status.HTTP_200_OK)
+        data = resp_loc.json()
+        self.assertEqual(len(data), 1)
+        item = data[0]
+        self.assertEqual(item["id"], ad_id)
+        self.assertEqual(item["price"], 1500)
+        self.assertIsInstance(item["latitude"], float)
+        self.assertEqual(item["latitude"], 41.5)
+
     def test_my_ads_list_without_auth_is_empty(self):
         self.create_ad(title="Mine")
         self.client.force_authenticate(user=None)

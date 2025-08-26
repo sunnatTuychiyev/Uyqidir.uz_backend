@@ -20,6 +20,7 @@ from .serializers import (
     AdCreateUpdateSerializer,
     AdDetailSerializer,
     AdImageSerializer,
+    AdMapSerializer,
     AmenitySerializer,
 )
 from .throttles import AdPostRateThrottle
@@ -62,6 +63,8 @@ class AdViewSet(viewsets.ModelViewSet):
             return AdCreateUpdateSerializer
         if self.action in {"images", "delete_image"}:
             return AdImageSerializer
+        if self.action == "locations":
+            return AdMapSerializer
         return AdDetailSerializer
 
     def get_throttles(self):
@@ -189,6 +192,18 @@ class AdViewSet(viewsets.ModelViewSet):
         serializer = AdDetailSerializer(page or qs, many=True, context={"request": request})
         if page is not None:
             return self.get_paginated_response(serializer.data)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="locations", serializer_class=AdMapSerializer)
+    def locations(self, request):
+        qs = Ad.objects.filter(
+            is_active=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+        ).only("id", "latitude", "longitude", "monthly_rent")
+        if request.user.is_authenticated and not request.user.is_staff:
+            qs = qs.filter(Q(status=AdStatus.APPROVED) | Q(owner=request.user))
+        serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
     @action(detail=True, methods=["get"], url_path="similar")

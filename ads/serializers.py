@@ -243,3 +243,20 @@ class AdDetailSerializer(serializers.ModelSerializer):
             "full_name": getattr(owner, "full_name", ""),
             "active_ads": active_ads,
         }
+
+
+class AdMapSerializer(serializers.ModelSerializer):
+    """Serializer for lightweight ad location data."""
+
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False
+    )
+    price = serializers.IntegerField(source="monthly_rent")
+
+    class Meta:
+        model = Ad
+        fields = ["id", "latitude", "longitude", "price"]
+        read_only_fields = fields
