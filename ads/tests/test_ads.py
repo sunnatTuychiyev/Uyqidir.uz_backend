@@ -297,10 +297,11 @@ class AdTests(APITestCase):
     def test_public_get_endpoints(self):
         resp = self.create_ad(title="Public")
         ad_id = resp.data["id"]
-        Ad.objects.filter(id=ad_id).update(status=AdStatus.APPROVED)
         self.client.force_authenticate(user=None)
         list_resp = self.client.get(self.list_url)
         self.assertEqual(list_resp.status_code, status.HTTP_200_OK)
+        ids = [item["id"] for item in list_resp.data.get("results", [])]
+        self.assertIn(ad_id, ids)
         detail_resp = self.client.get(reverse("ad-detail", args=[ad_id]))
         self.assertEqual(detail_resp.status_code, status.HTTP_200_OK)
 

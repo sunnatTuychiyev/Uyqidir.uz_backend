@@ -48,13 +48,13 @@ class AdViewSet(viewsets.ModelViewSet):
                 return qs
             if self.request.user.is_authenticated:
                 return qs.filter(Q(status=AdStatus.APPROVED) | Q(owner=self.request.user))
-            return qs.filter(status=AdStatus.APPROVED)
+            return qs
         if self.action == "retrieve":
             if self.request.user.is_authenticated:
                 if self.request.user.is_staff:
                     return qs
                 return qs.filter(Q(status=AdStatus.APPROVED, is_active=True) | Q(owner=self.request.user))
-            return qs.filter(status=AdStatus.APPROVED, is_active=True)
+            return qs.filter(is_active=True)
         return qs
 
     def get_serializer_class(self):
