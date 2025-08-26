@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
@@ -63,6 +66,126 @@ class AdTests(APITestCase):
         ad = Ad.objects.get(id=resp.data["id"])
         self.assertEqual(ad.status, AdStatus.PENDING)
         self.assertTrue(ad.slug)
+
+    def test_list_shows_own_pending_ads(self):
+        resp = self.create_ad(title="Mine")
+        ad_id = resp.data["id"]
+        list_resp = self.client.get(self.list_url)
+        self.assertEqual(list_resp.status_code, status.HTTP_200_OK)
+        ids = [item["id"] for item in list_resp.data.get("results", [])]
+        self.assertIn(ad_id, ids)
+
+    def test_create_ad_with_base64_images(self):
+        image_data = base64.b64encode(MIN_GIF).decode()
+        payload = {
+            "title": "Base64 House",
+            "description": "Nice place",
+            "monthly_rent": 1000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 50,
+            "address": "Main street",
+            "latitude": 41.0,
+            "longitude": 69.0,
+            "amenities": [self.amenity.id],
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertEqual(ad.images.count(), 1)
+
+    def test_create_ad_with_unpadded_base64(self):
+        image_data = base64.b64encode(MIN_GIF).decode().rstrip("=")
+        payload = {
+            "title": "Unpadded House",
+            "description": "Nice place",
+            "monthly_rent": 1000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 50,
+            "address": "Main street",
+            "latitude": 41.0,
+            "longitude": 69.0,
+            "amenities": [self.amenity.id],
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertEqual(ad.images.count(), 1)
+
+    def test_frontend_payload(self):
+        image_data = base64.b64encode(MIN_GIF).decode()
+        a2 = Amenity.objects.create(name="Pool", slug="pool")
+        a3 = Amenity.objects.create(name="Gym", slug="gym")
+        payload = {
+            "title": "Frontend",
+            "description": "Nice place",
+            "monthly_rent": 123456,
+            "property_type": "APARTMENT",
+            "bedrooms": 2,
+            "bathrooms": 1,
+            "area_m2": "65.0",
+            "address": "Main street",
+            "latitude": "41.31",
+            "longitude": "69.28",
+            "amenities": [self.amenity.id, a2.id, a3.id],
+            "contact_name": "User",
+            "contact_phone": "998901234567",
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertEqual(str(ad.contact_phone), "+998901234567")
+        self.assertEqual(ad.latitude, Decimal(payload["latitude"]))
+
+    def test_unknown_amenities_are_ignored(self):
+        """Posting IDs that don't exist should not raise an error."""
+        image_data = base64.b64encode(MIN_GIF).decode()
+        payload = {
+            "title": "Unknown amenities",
+            "description": "Nice place",
+            "monthly_rent": 5000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 45,
+            "address": "Main street",
+            "amenities": [self.amenity.id, 999],
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertListEqual(list(ad.amenities.values_list("id", flat=True)), [self.amenity.id])
+
+    def test_create_ad_without_location(self):
+        data = {
+            "title": "No Location",
+            "description": "Nice place",
+            "monthly_rent": 1000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 50,
+            "address": "Main street",
+            "amenities": [self.amenity.id],
+            "images": [generate_image()],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, data, format="multipart")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertIsNone(ad.latitude)
+        self.assertIsNone(ad.longitude)
 
     def test_image_limit(self):
         images = [generate_image(f"{i}.gif") for i in range(10)]
@@ -175,10 +298,31 @@ class AdTests(APITestCase):
             "area_m2": 50,
             "address": "Main",
             "images": [generate_image()],
+            "latitude": 41.0,
         }
         resp = self.client.post(self.list_url, data, format="multipart")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("latitude", resp.data)
+        self.assertIn("non_field_errors", resp.data)
+
+    def test_coordinates_are_numbers(self):
+        resp = self.create_ad(
+            title="Coords",
+            latitude=41.123456,
+            longitude=69.987654,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        resp_json = resp.json()
+        self.assertIsInstance(resp_json["latitude"], float)
+        self.assertEqual(resp_json["latitude"], 41.123456)
+        self.assertIsInstance(resp_json["longitude"], float)
+
+        list_resp = self.client.get(self.list_url)
+        list_json = list_resp.json()
+        self.assertIsInstance(list_json["results"][0]["latitude"], float)
+
+        detail_resp = self.client.get(reverse("ad-detail", args=[resp_json["id"]]))
+        detail_json = detail_resp.json()
+        self.assertIsInstance(detail_json["latitude"], float)
 
     def test_stats_endpoint(self):
         self.create_ad(title="Available")
@@ -239,3 +383,35 @@ class AdTests(APITestCase):
         self.assertEqual(resp_detail.status_code, status.HTTP_200_OK)
         self.assertEqual(resp_detail.data["owner"]["full_name"], "User")
         self.assertEqual(resp_detail.data["owner"]["active_ads"], 5)
+
+    def test_public_get_endpoints(self):
+        resp = self.create_ad(title="Public")
+        ad_id = resp.data["id"]
+        self.client.force_authenticate(user=None)
+        list_resp = self.client.get(self.list_url)
+        self.assertEqual(list_resp.status_code, status.HTTP_200_OK)
+        ids = [item["id"] for item in list_resp.data.get("results", [])]
+        self.assertIn(ad_id, ids)
+        detail_resp = self.client.get(reverse("ad-detail", args=[ad_id]))
+        self.assertEqual(detail_resp.status_code, status.HTTP_200_OK)
+
+    def test_locations_endpoint_returns_map_data(self):
+        resp = self.create_ad(title="MapHouse", monthly_rent=1500, latitude=41.5, longitude=69.6)
+        ad_id = resp.data["id"]
+        self.client.force_authenticate(user=None)
+        resp_loc = self.client.get(reverse("ad-locations"))
+        self.assertEqual(resp_loc.status_code, status.HTTP_200_OK)
+        data = resp_loc.json()
+        self.assertEqual(len(data), 1)
+        item = data[0]
+        self.assertEqual(item["id"], ad_id)
+        self.assertEqual(item["price"], 1500)
+        self.assertIsInstance(item["latitude"], float)
+        self.assertEqual(item["latitude"], 41.5)
+
+    def test_my_ads_list_without_auth_is_empty(self):
+        self.create_ad(title="Mine")
+        self.client.force_authenticate(user=None)
+        resp = self.client.get(reverse("my-ad-list"))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data.get("results", [])), 0)

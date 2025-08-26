@@ -10,7 +10,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schem
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny, IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
 
 from .filters import AdFilter
@@ -20,6 +20,7 @@ from .serializers import (
     AdCreateUpdateSerializer,
     AdDetailSerializer,
     AdImageSerializer,
+    AdMapSerializer,
     AmenitySerializer,
 )
 from .throttles import AdPostRateThrottle
@@ -30,22 +31,31 @@ class AdViewSet(viewsets.ModelViewSet):
 
     queryset = Ad.objects.select_related("owner").prefetch_related("amenities", "images")
     serializer_class = AdDetailSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AdFilter
     search_fields = ["title", "description", "address"]
     ordering = ["-created_at"]
 
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [AllowAny(), IsOwnerOrReadOnly()]
+        return [IsAuthenticated(), IsOwnerOrReadOnly()]
+
     def get_queryset(self):
         qs = Ad.objects.select_related("owner").prefetch_related("amenities", "images")
         if self.action == "list":
-            return qs.filter(status=AdStatus.APPROVED, is_active=True)
+            qs = qs.filter(is_active=True)
+            if self.request.user.is_staff:
+                return qs
+            if self.request.user.is_authenticated:
+                return qs.filter(Q(status=AdStatus.APPROVED) | Q(owner=self.request.user))
+            return qs
         if self.action == "retrieve":
             if self.request.user.is_authenticated:
                 if self.request.user.is_staff:
                     return qs
                 return qs.filter(Q(status=AdStatus.APPROVED, is_active=True) | Q(owner=self.request.user))
-            return qs.filter(status=AdStatus.APPROVED, is_active=True)
+            return qs.filter(is_active=True)
         return qs
 
     def get_serializer_class(self):
@@ -53,6 +63,8 @@ class AdViewSet(viewsets.ModelViewSet):
             return AdCreateUpdateSerializer
         if self.action in {"images", "delete_image"}:
             return AdImageSerializer
+        if self.action == "locations":
+            return AdMapSerializer
         return AdDetailSerializer
 
     def get_throttles(self):
@@ -182,6 +194,18 @@ class AdViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         return Response(serializer.data)
 
+    @action(detail=False, methods=["get"], url_path="locations", serializer_class=AdMapSerializer)
+    def locations(self, request):
+        qs = Ad.objects.filter(
+            is_active=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+        ).only("id", "latitude", "longitude", "monthly_rent")
+        if request.user.is_authenticated and not request.user.is_staff:
+            qs = qs.filter(Q(status=AdStatus.APPROVED) | Q(owner=request.user))
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=["get"], url_path="similar")
     def similar(self, request, pk=None):
         ad = self.get_object()
@@ -208,12 +232,16 @@ class MyAdViewSet(
     """Endpoints for the current user's ads."""
 
     serializer_class = AdDetailSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     throttle_classes: list = []
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AdFilter
     search_fields = ["title", "description", "address"]
     ordering = ["-created_at"]
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [AllowAny(), IsOwnerOrReadOnly()]
+        return [IsAuthenticated(), IsOwnerOrReadOnly()]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:

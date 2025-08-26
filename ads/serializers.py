@@ -1,14 +1,51 @@
 from __future__ import annotations
 
 from typing import Any
+import base64
+import io
+import uuid
+import re
+from binascii import Error as BinasciiError
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.core.files.base import ContentFile
 from rest_framework import serializers
+from PIL import Image, UnidentifiedImageError
+import phonenumbers
+from phonenumbers import NumberParseException, PhoneNumberFormat
 
 from .models import Ad, AdImage, Amenity, AdStatus
 
 User = get_user_model()
+
+
+class Base64ImageField(serializers.ImageField):
+    """A DRF ImageField for handling base64-encoded images."""
+
+    def to_internal_value(self, data: Any) -> Any:
+        if isinstance(data, str):
+            if data.startswith("data:image"):
+                header, data = data.split(";base64,", 1)
+            data = re.sub(r"\s", "", data)
+            missing_padding = len(data) % 4
+            if missing_padding:
+                data += "=" * (4 - missing_padding)
+            try:
+                decoded_file = base64.b64decode(data)
+            except (BinasciiError, ValueError) as exc:  # pragma: no cover - defensive
+                raise serializers.ValidationError("Invalid image data") from exc
+
+            try:
+                with Image.open(io.BytesIO(decoded_file)) as img:
+                    file_extension = img.format.lower()
+            except (UnidentifiedImageError, OSError) as exc:
+                raise serializers.ValidationError("Invalid image data") from exc
+
+            file_name = f"{uuid.uuid4().hex[:12]}.{file_extension}"
+            data = ContentFile(decoded_file, name=file_name)
+
+        return super().to_internal_value(data)
 
 
 class AmenitySerializer(serializers.ModelSerializer):
@@ -21,6 +58,8 @@ class AmenitySerializer(serializers.ModelSerializer):
 
 class AdImageSerializer(serializers.ModelSerializer):
     """Serializer for ad images."""
+
+    image = Base64ImageField()
 
     class Meta:
         model = AdImage
@@ -39,17 +78,40 @@ class AdImageSerializer(serializers.ModelSerializer):
         return AdImage.objects.create(ad=ad, **validated_data)
 
 
+class AmenityPrimaryKeyField(serializers.PrimaryKeyRelatedField):
+    """Silently drop IDs that don't correspond to an amenity."""
+
+    def to_internal_value(self, data: Any) -> Any:  # pragma: no cover - thin wrapper
+        try:
+            return super().to_internal_value(data)
+        except serializers.ValidationError:
+            return None
+
+
 class AdCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer used for creating and updating ads."""
 
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6)
-    amenities = serializers.PrimaryKeyRelatedField(
+    latitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        coerce_to_string=False,
+        required=False,
+        allow_null=True,
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        coerce_to_string=False,
+        required=False,
+        allow_null=True,
+    )
+    amenities = AmenityPrimaryKeyField(
         queryset=Amenity.objects.all(), many=True, required=False
     )
     images = serializers.ListField(
-        child=serializers.ImageField(), write_only=True, required=False
+        child=Base64ImageField(), write_only=True, required=False
     )
+    contact_phone = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Ad
@@ -92,6 +154,21 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Area must be between 1 and 100000 square meters.")
         return value
 
+    def validate_contact_phone(self, value: str) -> str:
+        if not value:
+            return value
+        try:
+            number = phonenumbers.parse(value, "UZ")
+            if not phonenumbers.is_valid_number(number):
+                raise NumberParseException(0, "invalid")
+        except NumberParseException:
+            raise serializers.ValidationError("Enter a valid phone number.")
+        return phonenumbers.format_number(number, PhoneNumberFormat.E164)
+
+    def validate_amenities(self, value: list[Amenity | None]) -> list[Amenity]:
+        """Filter out any nonexistent amenities returned as ``None``."""
+        return [a for a in value if a]
+
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         attrs = super().validate(attrs)
         images = attrs.get("images", [])
@@ -99,10 +176,14 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         existing = instance.images.count() if instance else 0
         if existing + len(images) > 10:
             raise serializers.ValidationError("Maximum of 10 images allowed per ad.")
-        if ("latitude" in attrs) ^ ("longitude" in attrs):
+
+        lat = attrs.get("latitude")
+        lng = attrs.get("longitude")
+        if (lat is None) ^ (lng is None):
             raise serializers.ValidationError(
                 "Latitude and longitude must be provided together."
             )
+
         return attrs
 
     @transaction.atomic
@@ -154,6 +235,12 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
 class AdDetailSerializer(serializers.ModelSerializer):
     """Read-only serializer for ad details."""
 
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False, read_only=True
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False, read_only=True
+    )
     amenities = AmenitySerializer(many=True, read_only=True)
     images = AdImageSerializer(many=True, read_only=True)
     owner = serializers.SerializerMethodField()
@@ -196,3 +283,20 @@ class AdDetailSerializer(serializers.ModelSerializer):
             "full_name": getattr(owner, "full_name", ""),
             "active_ads": active_ads,
         }
+
+
+class AdMapSerializer(serializers.ModelSerializer):
+    """Serializer for lightweight ad location data."""
+
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False
+    )
+    price = serializers.IntegerField(source="monthly_rent")
+
+    class Meta:
+        model = Ad
+        fields = ["id", "latitude", "longitude", "price"]
+        read_only_fields = fields
