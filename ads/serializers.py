@@ -1,14 +1,40 @@
 from __future__ import annotations
 
 from typing import Any
+import base64
+import imghdr
+import uuid
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.core.files.base import ContentFile
 from rest_framework import serializers
 
 from .models import Ad, AdImage, Amenity, AdStatus
 
 User = get_user_model()
+
+
+class Base64ImageField(serializers.ImageField):
+    """A DRF ImageField for handling base64-encoded images."""
+
+    def to_internal_value(self, data: Any) -> Any:
+        if isinstance(data, str):
+            if data.startswith("data:image"):
+                header, data = data.split(";base64,", 1)
+            try:
+                decoded_file = base64.b64decode(data)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise serializers.ValidationError("Invalid image data") from exc
+
+            file_extension = imghdr.what(None, decoded_file)
+            if not file_extension:
+                raise serializers.ValidationError("Invalid image data")
+
+            file_name = f"{uuid.uuid4().hex[:12]}.{file_extension}"
+            data = ContentFile(decoded_file, name=file_name)
+
+        return super().to_internal_value(data)
 
 
 class AmenitySerializer(serializers.ModelSerializer):
@@ -21,6 +47,8 @@ class AmenitySerializer(serializers.ModelSerializer):
 
 class AdImageSerializer(serializers.ModelSerializer):
     """Serializer for ad images."""
+
+    image = Base64ImageField()
 
     class Meta:
         model = AdImage
@@ -48,7 +76,7 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         queryset=Amenity.objects.all(), many=True, required=False
     )
     images = serializers.ListField(
-        child=serializers.ImageField(), write_only=True, required=False
+        child=Base64ImageField(), write_only=True, required=False
     )
 
     class Meta:
