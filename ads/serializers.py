@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 import base64
-import imghdr
+import io
 import uuid
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.core.files.base import ContentFile
 from rest_framework import serializers
+from PIL import Image, UnidentifiedImageError
 
 from .models import Ad, AdImage, Amenity, AdStatus
 
@@ -27,9 +28,11 @@ class Base64ImageField(serializers.ImageField):
             except Exception as exc:  # pragma: no cover - defensive
                 raise serializers.ValidationError("Invalid image data") from exc
 
-            file_extension = imghdr.what(None, decoded_file)
-            if not file_extension:
-                raise serializers.ValidationError("Invalid image data")
+            try:
+                with Image.open(io.BytesIO(decoded_file)) as img:
+                    file_extension = img.format.lower()
+            except (UnidentifiedImageError, OSError) as exc:
+                raise serializers.ValidationError("Invalid image data") from exc
 
             file_name = f"{uuid.uuid4().hex[:12]}.{file_extension}"
             data = ContentFile(decoded_file, name=file_name)
