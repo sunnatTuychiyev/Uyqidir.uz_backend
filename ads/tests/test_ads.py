@@ -118,6 +118,26 @@ class AdTests(APITestCase):
         ad = Ad.objects.get(id=resp.data["id"])
         self.assertEqual(ad.images.count(), 1)
 
+    def test_create_ad_without_location(self):
+        data = {
+            "title": "No Location",
+            "description": "Nice place",
+            "monthly_rent": 1000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 50,
+            "address": "Main street",
+            "amenities": [self.amenity.id],
+            "images": [generate_image()],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, data, format="multipart")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertIsNone(ad.latitude)
+        self.assertIsNone(ad.longitude)
+
     def test_image_limit(self):
         images = [generate_image(f"{i}.gif") for i in range(10)]
         resp = self.create_ad(title="House 2", images=images)

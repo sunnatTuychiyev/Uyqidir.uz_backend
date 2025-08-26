@@ -80,10 +80,18 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer used for creating and updating ads."""
 
     latitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, coerce_to_string=False
+        max_digits=9,
+        decimal_places=6,
+        coerce_to_string=False,
+        required=False,
+        allow_null=True,
     )
     longitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, coerce_to_string=False
+        max_digits=9,
+        decimal_places=6,
+        coerce_to_string=False,
+        required=False,
+        allow_null=True,
     )
     amenities = serializers.PrimaryKeyRelatedField(
         queryset=Amenity.objects.all(), many=True, required=False
@@ -140,10 +148,14 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         existing = instance.images.count() if instance else 0
         if existing + len(images) > 10:
             raise serializers.ValidationError("Maximum of 10 images allowed per ad.")
-        if ("latitude" in attrs) ^ ("longitude" in attrs):
+
+        lat = attrs.get("latitude")
+        lng = attrs.get("longitude")
+        if (lat is None) ^ (lng is None):
             raise serializers.ValidationError(
                 "Latitude and longitude must be provided together."
             )
+
         return attrs
 
     @transaction.atomic
