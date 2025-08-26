@@ -293,3 +293,20 @@ class AdTests(APITestCase):
         self.assertEqual(resp_detail.status_code, status.HTTP_200_OK)
         self.assertEqual(resp_detail.data["owner"]["full_name"], "User")
         self.assertEqual(resp_detail.data["owner"]["active_ads"], 5)
+
+    def test_public_get_endpoints(self):
+        resp = self.create_ad(title="Public")
+        ad_id = resp.data["id"]
+        Ad.objects.filter(id=ad_id).update(status=AdStatus.APPROVED)
+        self.client.force_authenticate(user=None)
+        list_resp = self.client.get(self.list_url)
+        self.assertEqual(list_resp.status_code, status.HTTP_200_OK)
+        detail_resp = self.client.get(reverse("ad-detail", args=[ad_id]))
+        self.assertEqual(detail_resp.status_code, status.HTTP_200_OK)
+
+    def test_my_ads_list_without_auth_is_empty(self):
+        self.create_ad(title="Mine")
+        self.client.force_authenticate(user=None)
+        resp = self.client.get(reverse("my-ad-list"))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data.get("results", [])), 0)

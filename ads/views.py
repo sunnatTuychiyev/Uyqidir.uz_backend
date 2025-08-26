@@ -10,7 +10,7 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schem
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny, IsAuthenticated, SAFE_METHODS
 from rest_framework.response import Response
 
 from .filters import AdFilter
@@ -30,11 +30,15 @@ class AdViewSet(viewsets.ModelViewSet):
 
     queryset = Ad.objects.select_related("owner").prefetch_related("amenities", "images")
     serializer_class = AdDetailSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AdFilter
     search_fields = ["title", "description", "address"]
     ordering = ["-created_at"]
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [AllowAny(), IsOwnerOrReadOnly()]
+        return [IsAuthenticated(), IsOwnerOrReadOnly()]
 
     def get_queryset(self):
         qs = Ad.objects.select_related("owner").prefetch_related("amenities", "images")
@@ -213,12 +217,16 @@ class MyAdViewSet(
     """Endpoints for the current user's ads."""
 
     serializer_class = AdDetailSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     throttle_classes: list = []
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_class = AdFilter
     search_fields = ["title", "description", "address"]
     ordering = ["-created_at"]
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [AllowAny(), IsOwnerOrReadOnly()]
+        return [IsAuthenticated(), IsOwnerOrReadOnly()]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
