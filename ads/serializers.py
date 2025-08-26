@@ -4,6 +4,8 @@ from typing import Any
 import base64
 import io
 import uuid
+import re
+from binascii import Error as BinasciiError
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -23,9 +25,13 @@ class Base64ImageField(serializers.ImageField):
         if isinstance(data, str):
             if data.startswith("data:image"):
                 header, data = data.split(";base64,", 1)
+            data = re.sub(r"\s", "", data)
+            missing_padding = len(data) % 4
+            if missing_padding:
+                data += "=" * (4 - missing_padding)
             try:
                 decoded_file = base64.b64decode(data)
-            except Exception as exc:  # pragma: no cover - defensive
+            except (BinasciiError, ValueError) as exc:  # pragma: no cover - defensive
                 raise serializers.ValidationError("Invalid image data") from exc
 
             try:

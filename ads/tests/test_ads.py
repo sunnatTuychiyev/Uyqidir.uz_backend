@@ -88,6 +88,28 @@ class AdTests(APITestCase):
         ad = Ad.objects.get(id=resp.data["id"])
         self.assertEqual(ad.images.count(), 1)
 
+    def test_create_ad_with_unpadded_base64(self):
+        image_data = base64.b64encode(MIN_GIF).decode().rstrip("=")
+        payload = {
+            "title": "Unpadded House",
+            "description": "Nice place",
+            "monthly_rent": 1000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 50,
+            "address": "Main street",
+            "latitude": 41.0,
+            "longitude": 69.0,
+            "amenities": [self.amenity.id],
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertEqual(ad.images.count(), 1)
+
     def test_image_limit(self):
         images = [generate_image(f"{i}.gif") for i in range(10)]
         resp = self.create_ad(title="House 2", images=images)
