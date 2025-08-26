@@ -146,6 +146,27 @@ class AdTests(APITestCase):
         self.assertEqual(str(ad.contact_phone), "+998901234567")
         self.assertEqual(ad.latitude, Decimal(payload["latitude"]))
 
+    def test_unknown_amenities_are_ignored(self):
+        """Posting IDs that don't exist should not raise an error."""
+        image_data = base64.b64encode(MIN_GIF).decode()
+        payload = {
+            "title": "Unknown amenities",
+            "description": "Nice place",
+            "monthly_rent": 5000,
+            "property_type": "HOUSE",
+            "bedrooms": 1,
+            "bathrooms": 1,
+            "area_m2": 45,
+            "address": "Main street",
+            "amenities": [self.amenity.id, 999],
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertListEqual(list(ad.amenities.values_list("id", flat=True)), [self.amenity.id])
+
     def test_create_ad_without_location(self):
         data = {
             "title": "No Location",

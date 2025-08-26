@@ -78,6 +78,16 @@ class AdImageSerializer(serializers.ModelSerializer):
         return AdImage.objects.create(ad=ad, **validated_data)
 
 
+class AmenityPrimaryKeyField(serializers.PrimaryKeyRelatedField):
+    """Silently drop IDs that don't correspond to an amenity."""
+
+    def to_internal_value(self, data: Any) -> Any:  # pragma: no cover - thin wrapper
+        try:
+            return super().to_internal_value(data)
+        except serializers.ValidationError:
+            return None
+
+
 class AdCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer used for creating and updating ads."""
 
@@ -95,7 +105,7 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
-    amenities = serializers.PrimaryKeyRelatedField(
+    amenities = AmenityPrimaryKeyField(
         queryset=Amenity.objects.all(), many=True, required=False
     )
     images = serializers.ListField(
@@ -154,6 +164,10 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         except NumberParseException:
             raise serializers.ValidationError("Enter a valid phone number.")
         return phonenumbers.format_number(number, PhoneNumberFormat.E164)
+
+    def validate_amenities(self, value: list[Amenity | None]) -> list[Amenity]:
+        """Filter out any nonexistent amenities returned as ``None``."""
+        return [a for a in value if a]
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         attrs = super().validate(attrs)
