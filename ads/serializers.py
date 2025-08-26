@@ -79,8 +79,12 @@ class AdImageSerializer(serializers.ModelSerializer):
 class AdCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer used for creating and updating ads."""
 
-    latitude = serializers.DecimalField(max_digits=9, decimal_places=6)
-    longitude = serializers.DecimalField(max_digits=9, decimal_places=6)
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False
+    )
     amenities = serializers.PrimaryKeyRelatedField(
         queryset=Amenity.objects.all(), many=True, required=False
     )
@@ -191,6 +195,12 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
 class AdDetailSerializer(serializers.ModelSerializer):
     """Read-only serializer for ad details."""
 
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False, read_only=True
+    )
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, coerce_to_string=False, read_only=True
+    )
     amenities = AmenitySerializer(many=True, read_only=True)
     images = AdImageSerializer(many=True, read_only=True)
     owner = serializers.SerializerMethodField()

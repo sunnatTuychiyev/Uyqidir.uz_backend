@@ -234,6 +234,26 @@ class AdTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("latitude", resp.data)
 
+    def test_coordinates_are_numbers(self):
+        resp = self.create_ad(
+            title="Coords",
+            latitude=41.123456,
+            longitude=69.987654,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        resp_json = resp.json()
+        self.assertIsInstance(resp_json["latitude"], float)
+        self.assertEqual(resp_json["latitude"], 41.123456)
+        self.assertIsInstance(resp_json["longitude"], float)
+
+        list_resp = self.client.get(self.list_url)
+        list_json = list_resp.json()
+        self.assertIsInstance(list_json["results"][0]["latitude"], float)
+
+        detail_resp = self.client.get(reverse("ad-detail", args=[resp_json["id"]]))
+        detail_json = detail_resp.json()
+        self.assertIsInstance(detail_json["latitude"], float)
+
     def test_stats_endpoint(self):
         self.create_ad(title="Available")
         available_ad = Ad.objects.latest("id")
