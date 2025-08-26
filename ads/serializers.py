@@ -12,6 +12,8 @@ from django.db import transaction
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 from PIL import Image, UnidentifiedImageError
+import phonenumbers
+from phonenumbers import NumberParseException, PhoneNumberFormat
 
 from .models import Ad, AdImage, Amenity, AdStatus
 
@@ -99,6 +101,7 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
     images = serializers.ListField(
         child=Base64ImageField(), write_only=True, required=False
     )
+    contact_phone = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Ad
@@ -140,6 +143,17 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
         if not 1 <= float(value) <= 100_000:
             raise serializers.ValidationError("Area must be between 1 and 100000 square meters.")
         return value
+
+    def validate_contact_phone(self, value: str) -> str:
+        if not value:
+            return value
+        try:
+            number = phonenumbers.parse(value, "UZ")
+            if not phonenumbers.is_valid_number(number):
+                raise NumberParseException(0, "invalid")
+        except NumberParseException:
+            raise serializers.ValidationError("Enter a valid phone number.")
+        return phonenumbers.format_number(number, PhoneNumberFormat.E164)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         attrs = super().validate(attrs)

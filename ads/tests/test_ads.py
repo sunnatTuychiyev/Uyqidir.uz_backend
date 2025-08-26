@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -117,6 +118,33 @@ class AdTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         ad = Ad.objects.get(id=resp.data["id"])
         self.assertEqual(ad.images.count(), 1)
+
+    def test_frontend_payload(self):
+        image_data = base64.b64encode(MIN_GIF).decode()
+        a2 = Amenity.objects.create(name="Pool", slug="pool")
+        a3 = Amenity.objects.create(name="Gym", slug="gym")
+        payload = {
+            "title": "Frontend",
+            "description": "Nice place",
+            "monthly_rent": 123456,
+            "property_type": "APARTMENT",
+            "bedrooms": 2,
+            "bathrooms": 1,
+            "area_m2": "65.0",
+            "address": "Main street",
+            "latitude": "41.31",
+            "longitude": "69.28",
+            "amenities": [self.amenity.id, a2.id, a3.id],
+            "contact_name": "User",
+            "contact_phone": "998901234567",
+            "images": [f"data:image/gif;base64,{image_data}"],
+        }
+        self.authenticate(self.user)
+        resp = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        ad = Ad.objects.get(id=resp.data["id"])
+        self.assertEqual(str(ad.contact_phone), "+998901234567")
+        self.assertEqual(ad.latitude, Decimal(payload["latitude"]))
 
     def test_create_ad_without_location(self):
         data = {
@@ -249,10 +277,11 @@ class AdTests(APITestCase):
             "area_m2": 50,
             "address": "Main",
             "images": [generate_image()],
+            "latitude": 41.0,
         }
         resp = self.client.post(self.list_url, data, format="multipart")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("latitude", resp.data)
+        self.assertIn("non_field_errors", resp.data)
 
     def test_coordinates_are_numbers(self):
         resp = self.create_ad(
