@@ -67,6 +67,12 @@ class AdTests(APITestCase):
         self.assertEqual(ad.status, AdStatus.PENDING)
         self.assertTrue(ad.slug)
 
+    def test_duplicate_title_returns_error(self):
+        self.create_ad(title="Unique")
+        resp = self.create_ad(title="Unique")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("title", resp.data)
+
     def test_list_shows_own_pending_ads(self):
         resp = self.create_ad(title="Mine")
         ad_id = resp.data["id"]
