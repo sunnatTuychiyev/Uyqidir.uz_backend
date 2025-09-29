@@ -184,6 +184,22 @@ class AdCreateUpdateSerializer(serializers.ModelSerializer):
                 "Latitude and longitude must be provided together."
             )
 
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        title = attrs.get("title")
+        if user and title:
+            qs = Ad.objects.filter(
+                owner=user,
+                title=title,
+                status__in=[AdStatus.PENDING, AdStatus.APPROVED],
+            )
+            if instance:
+                qs = qs.exclude(pk=instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"title": "You already have an active ad with this title."}
+                )
+
         return attrs
 
     @transaction.atomic
